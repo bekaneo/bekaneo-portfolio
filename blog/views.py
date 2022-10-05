@@ -1,20 +1,29 @@
 from django.shortcuts import render
+from django.views import generic
 from blog.models import Post, Comment
 from blog.forms import CommentForm
 
-def blog_index(request):
-    posts = Post.objects.all().order_by('-created_on')
-    context = {
-        "posts": posts,
-    }
-    return render(request, "blog_index.html", context)
+
+class BlogIndexView(generic.ListView):
+    model = Post
+    context_object_name = 'posts'
 
 
-def blog_detail(request, pk):
-    post = Post.objects.get(pk=pk)
+class BlogDetailView(generic.DetailView, generic.FormView):
+    @staticmethod
+    def get(request, pk, *args, **kwargs):
+        post = Post.objects.get(pk=pk)
+        comments = Comment.objects.filter(post=post)
+        form = CommentForm(request.POST)
+        context = {
+            'post': post,
+            'comments': comments,
+            'form': form
+        }
+        return render(request, 'blog_detail.html', context)
 
-    form = CommentForm()
-    if request.method == 'POST':
+    def post(self, request, pk, *args, **kwargs):
+        post = Post.objects.get(pk=pk)
         form = CommentForm(request.POST)
         if form.is_valid():
             comment = Comment(
@@ -23,24 +32,14 @@ def blog_detail(request, pk):
                 post=post
             )
             comment.save()
-
-    comments = Comment.objects.filter(post=post)
-    context = {
-        "post": post,
-        "comments": comments,
-        "form": form,
-    }
-    return render(request, "blog_detail.html", context)
+        return BlogDetailView.get(request, pk)
 
 
-def blog_category(request, category):
-    posts = Post.objects.filter(
-        categories__name__contains=category
-    ).order_by(
-        '-created_on'
-    )
-    context = {
-        "category": category,
-        "posts": posts
-    }
-    return render(request, "blog_category.html", context)
+class CategoryView(generic.ListView):
+    def get(self, request, category, *args, **kwargs):
+        posts = Post.objects.filter(categories__name__contains=category).order_by('-created_on')
+        context = {
+            "category": category,
+            "posts": posts
+        }
+        return render(request, "blog_category.html", context)
